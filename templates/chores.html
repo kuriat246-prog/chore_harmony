@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Chores | ChoreHarmony{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Header -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">Household Chores & Rotation Rules</h1>
+      <p class="text-xs text-slate-500 mt-1">Set clear definitions of "Done" and balanced turn-taking orders so no one feels cheated.</p>
+    </div>
+    <button onclick="toggleChoreForm()" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center space-x-1.5 self-start">
+      <span>+ Add New Chore</span>
+    </button>
+  </div>
+
+  <!-- Create Chore Form (Collapsible) -->
+  <div id="addChoreBox" class="hidden bg-white border border-brand-200 rounded-2xl p-6 shadow-md transition-all space-y-4">
+    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+      <h3 class="font-bold text-slate-900 text-base">Create a New Household Chore</h3>
+      <button onclick="toggleChoreForm()" class="text-slate-400 hover:text-slate-600 text-lg font-bold">&times;</button>
+    </div>
+
+    <form action="/chores/create" method="POST" class="space-y-4">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <!-- Title -->
+        <div class="md:col-span-2">
+          <label class="block text-xs font-bold text-slate-700 mb-1">Chore Title</label>
+          <input type="text" name="title" required placeholder="e.g. Clean Kitchen Counters & Stove" class="w-full text-xs border border-slate-300 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+
+        <!-- Icon Emoji -->
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Emoji Icon</label>
+          <select name="icon" class="w-full text-xs border border-slate-300 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-brand-500 outline-none">
+            <option value="🍽️">🍽️ Dishes / Kitchen</option>
+            <option value="🗑️">🗑️ Trash / Recycling</option>
+            <option value="🚿">🚿 Bathroom / Toilet</option>
+            <option value="🧹">🧹 Vacuum / Mopping</option>
+            <option value="🧺">🧺 Laundry / Linens</option>
+            <option value="🪴">🪴 Plants / Watering</option>
+            <option value="📦">📦 Common Groceries</option>
+            <option value="✨">✨ General Tidying</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Definition of Done -->
+      <div>
+        <label class="block text-xs font-bold text-slate-700 mb-1">
+          Definition of "Done" (Critical to eliminate roommate arguments)
+        </label>
+        <textarea name="description" rows="2" placeholder="e.g. 1. Wipe down all stove burners, 2. Run and unload dishwasher, 3. Empty counter crumbs." class="w-full text-xs border border-slate-300 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-brand-500 outline-none"></textarea>
+      </div>
+
+      <!-- Days of Week -->
+      <div>
+        <label class="block text-xs font-bold text-slate-700 mb-1.5">Scheduled Days of Week</label>
+        <div class="grid grid-cols-7 gap-2">
+          {% set day_labels = [('0','Mon'), ('1','Tue'), ('2','Wed'), ('3','Thu'), ('4','Fri'), ('5','Sat'), ('6','Sun')] %}
+          {% for val, name in day_labels %}
+          <label class="flex items-center justify-center space-x-1 p-2 border border-slate-200 rounded-xl text-xs font-medium cursor-pointer hover:bg-slate-50 has-[:checked]:bg-brand-50 has-[:checked]:border-brand-500 has-[:checked]:text-brand-700">
+            <input type="checkbox" name="days_of_week" value="{{ val }}" checked class="rounded text-brand-600 focus:ring-brand-500">
+            <span>{{ name }}</span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Roommates Rotation -->
+      <div>
+        <label class="block text-xs font-bold text-slate-700 mb-1.5">Who is in the Rotation? (Round-Robin Order)</label>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {% for u in users %}
+          <label class="flex items-center space-x-2 p-2 border border-slate-200 rounded-xl text-xs font-medium cursor-pointer hover:bg-slate-50 has-[:checked]:bg-brand-50 has-[:checked]:border-brand-500 has-[:checked]:text-brand-700">
+            <input type="checkbox" name="rotation_user_ids" value="{{ u.id }}" checked class="rounded text-brand-600 focus:ring-brand-500">
+            <span>{{ u.name }}</span>
+          </label>
+          {% endfor %}
+        </div>
+        <p class="text-[11px] text-slate-400 mt-1">The system rotates automatically between selected friends in fair turn-taking sequence.</p>
+      </div>
+
+      <!-- Submit -->
+      <div class="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100">
+        <button type="button" onclick="toggleChoreForm()" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition">
+          Cancel
+        </button>
+        <button type="submit" class="px-5 py-2 text-xs font-bold text-white bg-brand-600 hover:bg-brand-700 rounded-xl shadow-sm transition">
+          Save Chore
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Chore Cards Grid -->
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+    {% for chore in chores %}
+    <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition flex flex-col justify-between">
+      <div class="space-y-3">
+        <div class="flex items-start justify-between">
+          <div class="flex items-center space-x-3">
+            <span class="text-3xl p-2 bg-slate-100 rounded-xl">{{ chore.icon }}</span>
+            <div>
+              <h3 class="font-bold text-slate-900 text-base">{{ chore.title }}</h3>
+              <p class="text-xs text-slate-400">ID #{{ chore.id }}</p>
+            </div>
+          </div>
+          <form action="/chores/{{ chore.id }}/delete" method="POST" onsubmit="return confirm('Delete this chore?');">
+            <button type="submit" class="text-slate-300 hover:text-rose-500 transition text-sm" title="Delete chore">&times;</button>
+          </form>
+        </div>
+
+        <!-- Definition of Done -->
+        <div class="bg-slate-50 p-3 rounded-xl border border-slate-100">
+          <p class="text-[11px] font-bold text-slate-700 mb-0.5">Checklist / Standards:</p>
+          <p class="text-xs text-slate-600 leading-relaxed">{{ chore.description or "No special notes recorded." }}</p>
+        </div>
+
+        <!-- Rotation Members -->
+        <div>
+          <p class="text-[11px] font-bold text-slate-500 mb-1">Rotation Order:</p>
+          <div class="flex flex-wrap gap-1.5">
+            {% set member_ids = chore.rotation_user_ids.split(',') if chore.rotation_user_ids else [] %}
+            {% for uid in member_ids %}
+              {% set u = users|selectattr('id', 'equalto', uid|int)|first %}
+              {% if u %}
+              <span class="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                <span class="w-2 h-2 rounded-full" style="background-color: {{ u.avatar_color }};"></span>
+                <span>{{ u.name }}</span>
+              </span>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer active status -->
+      <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+        <span>Runs weekly on scheduled days</span>
+        <span class="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold text-[10px]">Active</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+</div>
+
+<script>
+  function toggleChoreForm() {
+    const box = document.getElementById('addChoreBox');
+    box.classList.toggle('hidden');
+  }
+</script>
+{% endblock %}

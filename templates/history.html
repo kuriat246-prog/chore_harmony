@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}History & Ledger | ChoreHarmony{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Header -->
+  <div>
+    <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">The Transparency Ledger</h1>
+    <p class="text-xs text-slate-500 mt-1">
+      An indisputable record of who completed what and when. Eliminates "I do everything around here" debates.
+    </p>
+  </div>
+
+  <!-- Historical Assignments Table -->
+  <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+      <h3 class="font-bold text-slate-900 text-sm">Chore Completion History</h3>
+      <span class="text-xs text-slate-400">Total logged: {{ assignments|length }}</span>
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-xs">
+        <thead class="bg-slate-50 text-slate-500 font-bold border-b border-slate-200">
+          <tr>
+            <th class="p-3.5">Due Date</th>
+            <th class="p-3.5">Chore</th>
+            <th class="p-3.5">Assigned Friend</th>
+            <th class="p-3.5">Status</th>
+            <th class="p-3.5">Completed Timestamp</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 text-slate-700">
+          {% if not assignments %}
+          <tr>
+            <td colspan="5" class="p-8 text-center text-slate-400">
+              No historical records yet. As chores are marked done, they will be archived here.
+            </td>
+          </tr>
+          {% else %}
+          {% for a in assignments %}
+          <tr class="hover:bg-slate-50/50 transition">
+            <td class="p-3.5 font-semibold text-slate-900">{{ a.due_date }}</td>
+            <td class="p-3.5 font-bold text-slate-800">
+              <span>{{ a.chore.icon }}</span>
+              <span>{{ a.chore.title }}</span>
+            </td>
+            <td class="p-3.5">
+              <span class="inline-flex items-center space-x-1.5 font-semibold">
+                <span class="w-2.5 h-2.5 rounded-full" style="background-color: {{ a.user.avatar_color }};"></span>
+                <span>{{ a.user.name }}</span>
+              </span>
+            </td>
+            <td class="p-3.5">
+              {% if a.status == 'completed' %}
+              <span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800">
+                Completed
+              </span>
+              {% elif a.status == 'swapped' %}
+              <span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-800">
+                Swapped
+              </span>
+              {% else %}
+              <span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-slate-100 text-slate-600">
+                {{ a.status }}
+              </span>
+              {% endif %}
+            </td>
+            <td class="p-3.5 text-slate-400">
+              {{ a.completed_at.strftime('%Y-%m-%d %H:%M') if a.completed_at else '—' }}
+            </td>
+          </tr>
+          {% endfor %}
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

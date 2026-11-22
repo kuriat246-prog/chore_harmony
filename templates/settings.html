@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block title %}Settings & Reminders | ChoreHarmony{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-8">
+
+  <!-- Header -->
+  <div>
+    <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">Morning Reminder Configuration</h1>
+    <p class="text-xs text-slate-500 mt-1">
+      Choose what time the automated referee wakes up to ping each flatmate on their morning.
+    </p>
+  </div>
+
+  <!-- Manual Test Dispatch Box -->
+  <div class="bg-gradient-to-r from-indigo-500 to-brand-600 rounded-2xl p-6 text-white shadow-md flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+      <h3 class="font-bold text-lg">Test Morning Notifications Now</h3>
+      <p class="text-xs text-indigo-100 mt-1">
+        Want to test how notifications look without waiting until tomorrow morning? Run a live dispatch test right now!
+      </p>
+    </div>
+    <form action="/trigger-morning-reminders" method="POST">
+      <button type="submit" class="px-5 py-2.5 bg-white text-brand-700 hover:bg-slate-100 font-extrabold text-xs rounded-xl shadow-lg transition whitespace-nowrap">
+        🚀 Send Test Alert Now
+      </button>
+    </form>
+  </div>
+
+  <!-- Main Settings Form -->
+  <form action="/settings/save" method="POST" class="space-y-6">
+
+    <!-- Schedule Card -->
+    <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+      <div class="border-b border-slate-100 pb-3">
+        <h3 class="font-bold text-slate-900 text-base">⏰ Automated Morning Dispatch Schedule</h3>
+        <p class="text-xs text-slate-400">The scheduler checks and notifies flatmates daily at this time</p>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Hour (0 &ndash; 23, 24h format)</label>
+          <input type="number" name="REMINDER_HOUR" min="0" max="23" value="{{ settings.get('REMINDER_HOUR', '8') }}" required class="w-full text-xs border border-slate-300 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-brand-500 outline-none">
+          <span class="text-[11px] text-slate-400 mt-0.5 block">8 = 8:00 AM, 9 = 9:00 AM</span>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Minute (0 &ndash; 59)</label>
+          <input type="number" name="REMINDER_MINUTE" min="0" max="59" value="{{ settings.get('REMINDER_MINUTE', '0') }}" required class="w-full text-xs border border-slate-300 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+      </div>
+    </div>
+
+    <!-- Telegram Bot Card (Recommended) -->
+    <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div>
+          <h3 class="font-bold text-slate-900 text-base flex items-center space-x-2">
+            <span>📱 Telegram Push Notifications</span>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800">Free & Recommended</span>
+          </h3>
+          <p class="text-xs text-slate-400">Sends instant push notifications straight to your flatmates' phones in the morning</p>
+        </div>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Telegram Bot Token</label>
+          <input type="text" name="TELEGRAM_BOT_TOKEN" placeholder="e.g. 123456789:ABCdefGHIjklMNOpqrSTUvwxYZ" value="{{ settings.get('TELEGRAM_BOT_TOKEN', '') }}" class="w-full text-xs font-mono border border-slate-300 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+
+        <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-100 text-xs text-slate-600 space-y-1">
+          <p class="font-bold text-slate-800">Quick 2-minute setup:</p>
+          <ol class="list-decimal list-inside space-y-1 text-slate-600">
+            <li>Search for <strong>@BotFather</strong> on Telegram and send <code>/newbot</code>.</li>
+            <li>Follow prompts to name your bot and copy the <strong>HTTP API Token</strong> here.</li>
+            <li>Each flatmate sends <code>/start</code> to your bot, and adds their <code>Chat ID</code> in the Friends page.</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+
+    <!-- Email SMTP Card -->
+    <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div>
+          <h3 class="font-bold text-slate-900 text-base flex items-center space-x-2">
+            <span>📧 Gmail / Email Reminders (SMTP)</span>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-800">100% Free</span>
+          </h3>
+          <p class="text-xs text-slate-400">Sends formatted morning reminders directly to flatmates' inboxes</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">SMTP Host</label>
+          <input type="text" name="SMTP_HOST" placeholder="smtp.gmail.com" value="{{ settings.get('SMTP_HOST') or 'smtp.gmail.com' }}" class="w-full text-xs border border-slate-300 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">SMTP Port</label>
+          <input type="number" name="SMTP_PORT" placeholder="587" value="{{ settings.get('SMTP_PORT') or '587' }}" class="w-full text-xs border border-slate-300 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Your Gmail Address</label>
+          <input type="text" name="SMTP_USER" placeholder="yourname@gmail.com" value="{{ settings.get('SMTP_USER', '') }}" class="w-full text-xs border border-slate-300 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Google App Password (16 characters)</label>
+          <input type="password" name="SMTP_PASSWORD" placeholder="••••••••••••••••" value="{{ settings.get('SMTP_PASSWORD', '') }}" class="w-full text-xs font-mono border border-slate-300 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+        <div class="sm:col-span-2">
+          <label class="block text-xs font-bold text-slate-700 mb-1">App Public URL (For the button in the email)</label>
+          <input type="text" name="APP_URL" placeholder="http://localhost:8000" value="{{ settings.get('APP_URL') or 'http://localhost:8000' }}" class="w-full text-xs border border-slate-300 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+      </div>
+
+      <div class="bg-blue-50/60 p-4 rounded-xl border border-blue-100 text-xs text-slate-700 space-y-2">
+        <p class="font-bold text-blue-900 flex items-center space-x-1">
+          <span>💡 Quick Guide: How to get your Google App Password (Takes 1 min)</span>
+        </p>
+        <ol class="list-decimal list-inside space-y-1 text-slate-600">
+          <li>Go to <a href="https://myaccount.google.com/security" target="_blank" class="text-blue-600 underline font-semibold">myaccount.google.com/security</a>.</li>
+          <li>Make sure <strong>2-Step Verification</strong> is turned <strong>ON</strong>.</li>
+          <li>Type <strong>"App passwords"</strong> in the top search bar and click it.</li>
+          <li>Enter any name (e.g. <code>ChoreHarmony</code>) and click <strong>Create</strong>.</li>
+          <li>Copy the 16-letter code generated by Google and paste it above into <strong>Google App Password</strong>!</li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- Save Settings Button -->
+    <div class="flex items-center justify-end space-x-3">
+      <button type="submit" class="px-6 py-2.5 text-xs font-bold text-white bg-brand-600 hover:bg-brand-700 rounded-xl shadow-md transition">
+        Save Settings
+      </button>
+    </div>
+  </form>
+
+</div>
+{% endblock %}

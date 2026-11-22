@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-50">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Roommate Chore Harmony{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    [x-cloak] { display: none !important; }
+  </style>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="h-full flex flex-col text-slate-800 antialiased">
+
+  <!-- Navigation Bar -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        <!-- Logo -->
+        <a href="/" class="flex items-center space-x-3 group">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-400 flex items-center justify-center text-white text-xl shadow-md group-hover:scale-105 transition-transform">
+            ✨
+          </div>
+          <div>
+            <span class="font-extrabold text-lg tracking-tight text-slate-900">ChoreHarmony</span>
+            <span class="hidden sm:inline-block ml-2 text-xs font-semibold px-2 py-0.5 bg-brand-50 text-brand-700 rounded-full border border-brand-100">Conflict-Free</span>
+          </div>
+        </a>
+
+        <!-- Desktop Navigation Links -->
+        <nav class="hidden md:flex items-center space-x-1">
+          <a href="/" class="px-3 py-2 rounded-lg text-sm font-semibold {% if active_page == 'dashboard' %}bg-brand-50 text-brand-700{% else %}text-slate-600 hover:text-slate-900 hover:bg-slate-100{% endif %} transition-colors">
+            🏠 Today & Board
+          </a>
+          <a href="/chores" class="px-3 py-2 rounded-lg text-sm font-semibold {% if active_page == 'chores' %}bg-brand-50 text-brand-700{% else %}text-slate-600 hover:text-slate-900 hover:bg-slate-100{% endif %} transition-colors">
+            📋 Chores & Rotations
+          </a>
+          <a href="/members" class="px-3 py-2 rounded-lg text-sm font-semibold {% if active_page == 'members' %}bg-brand-50 text-brand-700{% else %}text-slate-600 hover:text-slate-900 hover:bg-slate-100{% endif %} transition-colors">
+            👥 Friends
+          </a>
+          <a href="/history" class="px-3 py-2 rounded-lg text-sm font-semibold {% if active_page == 'history' %}bg-brand-50 text-brand-700{% else %}text-slate-600 hover:text-slate-900 hover:bg-slate-100{% endif %} transition-colors">
+            📜 History Ledger
+          </a>
+          <a href="/settings" class="px-3 py-2 rounded-lg text-sm font-semibold {% if active_page == 'settings' %}bg-brand-50 text-brand-700{% else %}text-slate-600 hover:text-slate-900 hover:bg-slate-100{% endif %} transition-colors">
+            ⚙️ Reminders & Setup
+          </a>
+        </nav>
+
+        <!-- Quick Action Button -->
+        <div class="flex items-center space-x-3">
+          <form action="/trigger-morning-reminders" method="POST" class="inline">
+            <button type="submit" title="Dispatch morning reminders right now for today's chores" class="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors shadow-sm">
+              <span>☀️ Send Morning Alert</span>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Mobile Bottom Navigation for quick access -->
+  <div class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 py-2 px-3 z-40 flex justify-around shadow-lg">
+    <a href="/" class="flex flex-col items-center text-xs font-medium {% if active_page == 'dashboard' %}text-brand-600 font-bold{% else %}text-slate-500{% endif %}">
+      <span class="text-lg">🏠</span>
+      <span>Today</span>
+    </a>
+    <a href="/chores" class="flex flex-col items-center text-xs font-medium {% if active_page == 'chores' %}text-brand-600 font-bold{% else %}text-slate-500{% endif %}">
+      <span class="text-lg">📋</span>
+      <span>Chores</span>
+    </a>
+    <a href="/members" class="flex flex-col items-center text-xs font-medium {% if active_page == 'members' %}text-brand-600 font-bold{% else %}text-slate-500{% endif %}">
+      <span class="text-lg">👥</span>
+      <span>Friends</span>
+    </a>
+    <a href="/history" class="flex flex-col items-center text-xs font-medium {% if active_page == 'history' %}text-brand-600 font-bold{% else %}text-slate-500{% endif %}">
+      <span class="text-lg">📜</span>
+      <span>Ledger</span>
+    </a>
+    <a href="/settings" class="flex flex-col items-center text-xs font-medium {% if active_page == 'settings' %}text-brand-600 font-bold{% else %}text-slate-500{% endif %}">
+      <span class="text-lg">⚙️</span>
+      <span>Setup</span>
+    </a>
+  </div>
+
+  <!-- Flash Message Banner -->
+  {% if message %}
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+    <div class="rounded-xl bg-emerald-50 border border-emerald-200 p-4 flex items-center justify-between text-emerald-800 shadow-sm animate-fade-in">
+      <div class="flex items-center space-x-3">
+        <span class="text-xl">✅</span>
+        <span class="text-sm font-semibold">{{ message }}</span>
+      </div>
+      <button onclick="this.parentElement.remove()" class="text-emerald-500 hover:text-emerald-700 text-sm font-bold">&times;</button>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Main Content Area -->
+  <main class="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 mb-16 md:mb-6">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-400 hidden md:block">
+    <div class="max-w-6xl mx-auto px-4">
+      ChoreHarmony &bull; Designed to eliminate flatmate friction with automated morning reminders & transparent tracking.
+    </div>
+  </footer>
+
+  <script>
+    function triggerConfetti() {
+      if (typeof confetti === 'function') {
+        confetti({
+          particleCount: 100,
+          spread: 70,
+          origin: { y: 0.6 }
+        });
+      }
+    }
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

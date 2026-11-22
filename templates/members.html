@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+
+{% block title %}Roommates & Friends | ChoreHarmony{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Header -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">Household Members & Notification Channels</h1>
+      <p class="text-xs text-slate-500 mt-1">Add your housemates' contact details so the system can ping them on their chore morning.</p>
+    </div>
+    <button onclick="toggleMemberForm()" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center space-x-1.5 self-start">
+      <span>+ Add Friend</span>
+    </button>
+  </div>
+
+  <!-- Add Member Form (Collapsible) -->
+  <div id="addMemberBox" class="hidden bg-white border border-brand-200 rounded-2xl p-6 shadow-md transition-all space-y-4">
+    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+      <h3 class="font-bold text-slate-900 text-base">Add a Housemate</h3>
+      <button onclick="toggleMemberForm()" class="text-slate-400 hover:text-slate-600 text-lg font-bold">&times;</button>
+    </div>
+
+    <form action="/members/create" method="POST" class="space-y-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+        <!-- Name -->
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">First Name</label>
+          <input type="text" name="name" required placeholder="e.g. Jordan" class="w-full text-xs border border-slate-300 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+
+        <!-- Email -->
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Email Address (Optional)</label>
+          <input type="email" name="email" placeholder="jordan@example.com" class="w-full text-xs border border-slate-300 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+
+        <!-- Telegram Chat ID -->
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Telegram Chat ID (Optional)</label>
+          <input type="text" name="telegram_chat_id" placeholder="e.g. 123456789" class="w-full text-xs border border-slate-300 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+
+        <!-- Avatar Color -->
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Badge Color</label>
+          <select name="avatar_color" class="w-full text-xs border border-slate-300 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-brand-500 outline-none">
+            <option value="#4F46E5">Indigo</option>
+            <option value="#059669">Emerald Green</option>
+            <option value="#D97706">Amber Orange</option>
+            <option value="#DC2626">Crimson Red</option>
+            <option value="#7C3AED">Purple</option>
+            <option value="#2563EB">Royal Blue</option>
+            <option value="#DB2777">Pink</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 text-xs text-slate-600">
+        💡 <strong>Tip on Telegram:</strong> Telegram sends free instant phone push notifications. Housemates can find their chat ID by messaging <code>@userinfobot</code> or <code>@myidbot</code> on Telegram.
+      </div>
+
+      <!-- Submit -->
+      <div class="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100">
+        <button type="button" onclick="toggleMemberForm()" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition">
+          Cancel
+        </button>
+        <button type="submit" class="px-5 py-2 text-xs font-bold text-white bg-brand-600 hover:bg-brand-700 rounded-xl shadow-sm transition">
+          Save Housemate
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Members Cards Grid -->
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+    {% for member in users %}
+    <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm hover:shadow-md transition flex flex-col justify-between">
+      <div class="space-y-4">
+        <!-- Top Avatar & Name -->
+        <div class="flex items-center space-x-3">
+          <div class="w-12 h-12 rounded-2xl flex items-center justify-center text-white font-extrabold text-lg shadow-sm" style="background-color: {{ member.avatar_color }};">
+            {{ member.name[0] }}
+          </div>
+          <div class="flex-1">
+            <h3 class="font-bold text-slate-900 text-base">{{ member.name }}</h3>
+            <span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">
+              Active Member
+            </span>
+          </div>
+        </div>
+
+        <!-- Notification Info -->
+        <div class="space-y-1.5 text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">
+          <div class="flex items-center space-x-2 truncate">
+            <span class="text-slate-400">📧</span>
+            <span class="truncate">{{ member.email or "No email set" }}</span>
+          </div>
+          <div class="flex items-center space-x-2 truncate">
+            <span class="text-slate-400">📱</span>
+            <span class="truncate">{{ member.telegram_chat_id or "No Telegram ID" }}</span>
+          </div>
+        </div>
+
+        <!-- Metrics -->
+        <div class="grid grid-cols-2 gap-2 text-center">
+          <div class="bg-indigo-50/50 p-2 rounded-xl border border-indigo-100">
+            <p class="text-base font-extrabold text-brand-700">{{ member.karma_points }}</p>
+            <p class="text-[10px] font-semibold text-slate-400 uppercase">Karma Pts</p>
+          </div>
+          <div class="bg-amber-50/50 p-2 rounded-xl border border-amber-100">
+            <p class="text-base font-extrabold text-amber-700">🔥 {{ member.current_streak }}</p>
+            <p class="text-[10px] font-semibold text-slate-400 uppercase">Streak</p>
+          </div>
+        </div>
+
+        <!-- Edit Button -->
+        <button onclick="openEditModal('{{ member.id }}', '{{ member.name }}', '{{ member.email or '' }}', '{{ member.avatar_color }}')" class="w-full mt-2 py-1.5 px-3 bg-slate-100 hover:bg-brand-50 hover:text-brand-700 text-slate-600 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1">
+          <span>✏️ Edit Email / Profile</span>
+        </button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Edit Member Modal -->
+  <div id="editMemberModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+    <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-2xl max-w-md w-full space-y-4 animate-in fade-in zoom-in-95 duration-150">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="font-bold text-slate-900 text-base">Edit Member</h3>
+        <button onclick="closeEditModal()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+      </div>
+
+      <form id="editMemberForm" method="POST" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Name</label>
+          <input type="text" id="editName" name="name" required class="w-full text-xs border border-slate-300 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Email Address (for Gmail reminders)</label>
+          <input type="email" id="editEmail" name="email" placeholder="e.g. friend@gmail.com" class="w-full text-xs border border-slate-300 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Badge Color</label>
+          <select id="editColor" name="avatar_color" class="w-full text-xs border border-slate-300 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-brand-500 outline-none">
+            <option value="#4F46E5">Indigo</option>
+            <option value="#059669">Emerald Green</option>
+            <option value="#D97706">Amber Orange</option>
+            <option value="#DC2626">Crimson Red</option>
+            <option value="#7C3AED">Purple</option>
+            <option value="#2563EB">Royal Blue</option>
+            <option value="#DB2777">Pink</option>
+          </select>
+        </div>
+
+        <div class="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100">
+          <button type="button" onclick="closeEditModal()" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition">
+            Cancel
+          </button>
+          <button type="submit" class="px-5 py-2 text-xs font-bold text-white bg-brand-600 hover:bg-brand-700 rounded-xl shadow-sm transition">
+            Save Changes
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  function toggleMemberForm() {
+    const box = document.getElementById('addMemberBox');
+    box.classList.toggle('hidden');
+  }
+
+  function openEditModal(id, name, email, color) {
+    const modal = document.getElementById('editMemberModal');
+    const form = document.getElementById('editMemberForm');
+    form.action = `/members/${id}/update`;
+    document.getElementById('editName').value = name;
+    document.getElementById('editEmail').value = email;
+    document.getElementById('editColor').value = color;
+    modal.classList.remove('hidden');
+  }
+
+  function closeEditModal() {
+    document.getElementById('editMemberModal').classList.add('hidden');
+  }
+</script>
+{% endblock %}
