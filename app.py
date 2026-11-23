@@ -341,6 +341,7 @@ def history_view(request: Request, db: Session = Depends(get_db)):
 def settings_view(request: Request, message: str = "", db: Session = Depends(get_db)):
     keys = [
         "REMINDER_HOUR", "REMINDER_MINUTE",
+        "BREVO_API_KEY", "BREVO_SENDER_EMAIL",
         "TELEGRAM_BOT_TOKEN",
         "SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASSWORD",
         "APP_URL"
@@ -362,6 +363,8 @@ def settings_view(request: Request, message: str = "", db: Session = Depends(get
 def save_settings(
     REMINDER_HOUR: int = Form(8),
     REMINDER_MINUTE: int = Form(0),
+    BREVO_API_KEY: str = Form(""),
+    BREVO_SENDER_EMAIL: str = Form(""),
     TELEGRAM_BOT_TOKEN: str = Form(""),
     SMTP_HOST: str = Form(""),
     SMTP_PORT: str = Form("587"),
@@ -372,6 +375,8 @@ def save_settings(
 ):
     set_setting(db, "REMINDER_HOUR", str(REMINDER_HOUR))
     set_setting(db, "REMINDER_MINUTE", str(REMINDER_MINUTE))
+    set_setting(db, "BREVO_API_KEY", BREVO_API_KEY.strip())
+    set_setting(db, "BREVO_SENDER_EMAIL", BREVO_SENDER_EMAIL.strip())
     set_setting(db, "TELEGRAM_BOT_TOKEN", TELEGRAM_BOT_TOKEN.strip())
     set_setting(db, "SMTP_HOST", SMTP_HOST.strip())
     set_setting(db, "SMTP_PORT", SMTP_PORT.strip())

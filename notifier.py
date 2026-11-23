@@ -143,6 +143,119 @@ Thanks for being an awesome flatmate!
         return False, f"Email failed: {str(e)}"
 
 
+def send_brevo_api_notification(
+    api_key: str,
+    from_email: str,
+    from_name: str,
+    to_email: str,
+    user_name: str,
+    chore_title: str,
+    chore_icon: str,
+    chore_description: str,
+    app_url: str,
+    complete_url: str = ""
+) -> tuple[bool, str]:
+    """
+    Sends email via Brevo REST API over HTTPS (Port 443).
+    Bypasses Render / cloud host SMTP port blocks completely.
+    """
+    if not api_key or not to_email:
+        return False, "Brevo API Key or recipient email is missing."
+
+    complete_url = complete_url or app_url
+    sender_email = (from_email or "").strip()
+    if not sender_email:
+        sender_email = "no-reply@choreharmony.com"
+
+    text_body = f"""Good morning, {user_name}!
+Today is your day to take care of: {chore_title} {chore_icon}
+
+Checklist / Details:
+{chore_description or 'No specific instructions. Just leave it tidy!'}
+
+Mark done in 1 click: {complete_url}
+Or visit the board: {app_url}
+Thanks for being an awesome flatmate!
+"""
+
+    html_body = f"""
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f3f4f6; margin: 0; padding: 20px; }}
+    .card {{ max-width: 540px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border: 1px solid #e5e7eb; }}
+    .header {{ background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); padding: 32px 24px; text-align: center; color: white; }}
+    .content {{ padding: 28px 24px; color: #374151; }}
+    .chore-box {{ background-color: #f9fafb; border-left: 4px solid #4f46e5; border-radius: 8px; padding: 18px; margin: 20px 0; }}
+    .chore-title {{ font-size: 20px; font-weight: 700; color: #111827; margin: 0 0 6px 0; }}
+    .chore-desc {{ font-size: 14px; color: #6b7280; margin: 0; line-height: 1.5; }}
+    .btn {{ display: inline-block; background-color: #059669; color: #ffffff !important; text-decoration: none; padding: 14px 28px; border-radius: 12px; font-weight: 700; font-size: 15px; margin-top: 15px; text-align: center; box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.3); }}
+    .footer {{ text-align: center; font-size: 12px; color: #9ca3af; padding: 20px; }}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <div style="font-size: 40px; margin-bottom: 8px;">{chore_icon}</div>
+      <h1 style="margin: 0; font-size: 24px; font-weight: 800;">Good morning, {user_name}!</h1>
+      <p style="margin: 6px 0 0 0; opacity: 0.9; font-size: 14px;">Here is your scheduled chore for today</p>
+    </div>
+    <div class="content">
+      <p style="font-size: 15px; line-height: 1.6; margin-top: 0;">
+        Keeping shared spaces peaceful starts with clear expectations. Today is your assigned day:
+      </p>
+      <div class="chore-box">
+        <div class="chore-title">{chore_icon} {chore_title}</div>
+        <p class="chore-desc">{chore_description or 'No extra notes. When you finish, tap the button below to mark it done!'}</p>
+      </div>
+      <div style="text-align: center; margin: 24px 0 10px 0;">
+        <a href="{complete_url}" class="btn">✅ Mark as Done (+10 Karma)</a>
+      </div>
+      <div style="text-align: center; margin-top: 12px;">
+        <a href="{app_url}" style="font-size: 13px; color: #6366f1; text-decoration: underline;">View Household Chore Board</a>
+      </div>
+    </div>
+    <div class="footer">
+      Shared Harmony Chore Engine &bull; Automated reminder to eliminate roommate conflict
+    </div>
+  </div>
+</body>
+</html>
+"""
+
+    try:
+        url = "https://api.brevo.com/v3/smtp/email"
+        headers = {
+            "accept": "application/json",
+            "api-key": api_key.strip(),
+            "content-type": "application/json"
+        }
+        payload = {
+            "sender": {
+                "name": from_name or "ChoreHarmony",
+                "email": sender_email
+            },
+            "to": [
+                {
+                    "email": to_email.strip(),
+                    "name": user_name
+                }
+            ],
+            "subject": f"☀️ Morning Chore Reminder: {chore_title}",
+            "htmlContent": html_body,
+            "textContent": text_body
+        }
+        resp = requests.post(url, json=payload, headers=headers, timeout=15)
+        if resp.status_code in (200, 201, 202):
+            return True, "Email sent successfully via Brevo HTTPS API."
+        else:
+            return False, f"Brevo API error ({resp.status_code}): {resp.text}"
+    except Exception as e:
+        return False, f"Brevo API request failed: {str(e)}"
+
+
 def send_telegram_notification(bot_token: str, chat_id: str, text: str) -> tuple[bool, str]:
     if not bot_token or not chat_id:
         return False, "Telegram Bot Token or Chat ID is missing."
@@ -179,6 +292,8 @@ def dispatch_chore_reminder(db, assignment, app_url: str = "http://localhost:800
     smtp_pass = get_setting(db, "SMTP_PASSWORD", "")
     smtp_from = get_setting(db, "SMTP_FROM", "Roommate Chore Bot <no-reply@chores.local>")
     telegram_token = get_setting(db, "TELEGRAM_BOT_TOKEN", "")
+    brevo_api_key = get_setting(db, "BREVO_API_KEY", "")
+    brevo_sender = get_setting(db, "BREVO_SENDER_EMAIL", "") or smtp_user
 
     results = []
 
@@ -203,8 +318,31 @@ def dispatch_chore_reminder(db, assignment, app_url: str = "http://localhost:800
         db.add(log_entry)
         results.append({"channel": "telegram", "success": tg_ok, "details": tg_msg})
 
-    # 2. Email Notification
-    if smtp_host and smtp_user and user.email:
+    # 2. Email Notification (Brevo API preferred for Cloud/Render, SMTP as fallback)
+    if brevo_api_key and user.email:
+        complete_url = f"{app_url}/assignments/{assignment.id}/complete"
+        email_ok, email_msg = send_brevo_api_notification(
+            api_key=brevo_api_key,
+            from_email=brevo_sender,
+            from_name="ChoreHarmony",
+            to_email=user.email,
+            user_name=user.name,
+            chore_title=chore.title,
+            chore_icon=chore.icon,
+            chore_description=chore.description,
+            app_url=app_url,
+            complete_url=complete_url
+        )
+        log_entry = NotificationLog(
+            user_id=user.id,
+            chore_title=chore.title,
+            channel="email (brevo api)",
+            status="sent" if email_ok else "failed",
+            details=email_msg
+        )
+        db.add(log_entry)
+        results.append({"channel": "email", "success": email_ok, "details": email_msg})
+    elif smtp_host and smtp_user and user.email:
         complete_url = f"{app_url}/assignments/{assignment.id}/complete"
         email_ok, email_msg = send_email_notification(
             smtp_host=smtp_host,
@@ -223,7 +361,7 @@ def dispatch_chore_reminder(db, assignment, app_url: str = "http://localhost:800
         log_entry = NotificationLog(
             user_id=user.id,
             chore_title=chore.title,
-            channel="email",
+            channel="email (smtp)",
             status="sent" if email_ok else "failed",
             details=email_msg
         )
