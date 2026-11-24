@@ -106,9 +106,18 @@ def get_db():
 
 
 def get_setting(db, key: str, default: str = "") -> str:
+    render_url = os.getenv("RENDER_EXTERNAL_URL", "").strip()
     setting = db.query(AppSetting).filter(AppSetting.key == key).first()
-    if setting and setting.value is not None:
-        return setting.value
+    if setting and setting.value is not None and setting.value.strip() != "":
+        val = setting.value.strip()
+        # If running on Render cloud but APP_URL was left as localhost, auto-upgrade to the real Render URL
+        if key == "APP_URL" and render_url and ("localhost" in val or "127.0.0.1" in val):
+            return render_url
+        return val
+
+    if key == "APP_URL" and render_url:
+        return render_url
+
     return os.getenv(key, default)
 
 

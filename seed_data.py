@@ -30,17 +30,17 @@ def seed():
         description="1. Clean the cooking pots.\n2. Clean the sink & wipe down counters .\n3. Scrub out sink.",
         days_of_week="0,1,2,3,4,5,6",  # Everyday
         frequency="daily",
-        rotation_user_ids=f"{u1.id},{u2.id},{u3.id},{u4.id}",
+        rotation_user_ids=f"{u2.id},{u4.id},{u3.id},{u1.id}",  # Frank, Victor, Winnie, Tracy
         is_active=True
     )
 
     c2 = Chore(
         title="Cooking",
-        icon="🗑️",
+        icon="🍳",
         description="1. Cook the specified meal of the day.\n2. Serve the ready meal.",
-        days_of_week="0,1,2,3,4,5,6",  # Tuesday & Friday
-        frequency="Daily",
-        rotation_user_ids=f"{u2.id},{u3.id},{u4.id},{u1.id}",
+        days_of_week="0,1,2,3,4,5,6",  # Everyday
+        frequency="daily",
+        rotation_user_ids=f"{u4.id},{u3.id},{u1.id},{u2.id}",  # Victor, Winnie, Tracy, Frank
         is_active=True
     )
 

@@ -22,12 +22,96 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
 
+def apply_exact_household_rotation(db: Session):
+    """
+    Enforces the exact household rotation requested:
+    - Today: Frank cleaning, Victor cooking
+    - Tomorrow: Victor cleaning, Winnie cooking
+    - Day after: Winnie cleaning, Tracy cooking
+    - Day after: Tracy cleaning, Frank cooking
+    And cycles continuously!
+    """
+    u_frank = db.query(User).filter(User.name.ilike("Frank%")).first()
+    u_victor = db.query(User).filter(User.name.ilike("Victor%")).first()
+    u_winnie = db.query(User).filter(User.name.ilike("Winnie%")).first()
+    u_tracy = db.query(User).filter(User.name.ilike("Tracy%")).first()
+
+    if not (u_frank and u_victor and u_winnie and u_tracy):
+        return
+
+    c_clean = db.query(Chore).filter(Chore.title.ilike("%Cleaning%")).first()
+    c_cook = db.query(Chore).filter(Chore.title == "Cooking").first()
+
+    if not (c_clean and c_cook):
+        return
+
+    # Frank -> Victor -> Winnie -> Tracy
+    clean_rotation = [u_frank.id, u_victor.id, u_winnie.id, u_tracy.id]
+    # Victor -> Winnie -> Tracy -> Frank
+    cook_rotation = [u_victor.id, u_winnie.id, u_tracy.id, u_frank.id]
+
+    c_clean.rotation_user_ids = ",".join(map(str, clean_rotation))
+    c_clean.days_of_week = "0,1,2,3,4,5,6"
+    c_clean.frequency = "daily"
+
+    c_cook.rotation_user_ids = ",".join(map(str, cook_rotation))
+    c_cook.days_of_week = "0,1,2,3,4,5,6"
+    c_cook.frequency = "daily"
+
+    today = date.today()
+
+    existing_clean = db.query(ChoreAssignment).filter(
+        ChoreAssignment.chore_id == c_clean.id,
+        ChoreAssignment.due_date == today
+    ).first()
+    existing_cook = db.query(ChoreAssignment).filter(
+        ChoreAssignment.chore_id == c_cook.id,
+        ChoreAssignment.due_date == today
+    ).first()
+
+    matches = (
+        existing_clean and existing_clean.user_id == u_frank.id and
+        existing_cook and existing_cook.user_id == u_victor.id
+    )
+
+    if not matches:
+        db.query(ChoreAssignment).filter(ChoreAssignment.due_date >= today).delete()
+        db.commit()
+
+        for offset in range(14):
+            d = today + timedelta(days=offset)
+            idx = offset % 4
+            a1 = ChoreAssignment(
+                chore_id=c_clean.id,
+                user_id=clean_rotation[idx],
+                due_date=d,
+                status="pending",
+                notified=False
+            )
+            a2 = ChoreAssignment(
+                chore_id=c_cook.id,
+                user_id=cook_rotation[idx],
+                due_date=d,
+                status="pending",
+                notified=False
+            )
+            db.add_all([a1, a2])
+        db.commit()
+    else:
+        db.commit()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: ensure tables and background scheduler are up
     init_db()
     from seed_data import seed
     seed()
+    db = SessionLocal()
+    try:
+        apply_exact_household_rotation(db)
+    finally:
+        db.close()
     start_scheduler()
     yield
     # Shutdown logic if needed
@@ -394,10 +478,28 @@ def save_settings(
     )
 
 
-@app.post("/trigger-morning-reminders")
-def trigger_reminders():
-    count = process_morning_reminders(force_notify=True)
+@app.get("/admin/sync-rotation")
+@app.post("/admin/sync-rotation")
+def sync_rotation(db: Session = Depends(get_db)):
+    apply_exact_household_rotation(db)
     return RedirectResponse(
-        url=f"/?message=Dispatched+morning+reminders+for+{count}+chore(s)+successfully!+☀️",
+        url="/?message=Chore+schedule+synchronized!+Today:+Frank+cleaning,+Victor+cooking.+Tomorrow:+Victor+cleaning,+Winnie+cooking.",
         status_code=303
     )
+
+
+@app.get("/trigger-morning-reminders")
+@app.post("/trigger-morning-reminders")
+def trigger_reminders(request: Request, db: Session = Depends(get_db)):
+    apply_exact_household_rotation(db)
+    count = process_morning_reminders(force_notify=True)
+    if "text/html" in request.headers.get("accept", ""):
+        return RedirectResponse(
+            url=f"/?message=Dispatched+morning+reminders+for+{count}+chore(s)+successfully!+☀️",
+            status_code=303
+        )
+    return {
+        "status": "success",
+        "dispatched_count": count,
+        "message": f"Dispatched morning reminders for {count} chore(s) successfully!"
+    }

@@ -107,10 +107,11 @@ def start_scheduler():
     try:
         hour = int(get_setting(db, "REMINDER_HOUR", "8") or 8)
         minute = int(get_setting(db, "REMINDER_MINUTE", "0") or 0)
+        tz = get_setting(db, "TIMEZONE", "Africa/Nairobi") or "Africa/Nairobi"
     finally:
         db.close()
 
-    trigger = CronTrigger(hour=hour, minute=minute)
+    trigger = CronTrigger(hour=hour, minute=minute, timezone=tz)
     scheduler.add_job(
         process_morning_reminders,
         trigger=trigger,
@@ -119,12 +120,12 @@ def start_scheduler():
         replace_existing=True
     )
     scheduler.start()
-    logger.info(f"Scheduler started. Morning reminders configured for {hour:02d}:{minute:02d} daily.")
+    logger.info(f"Scheduler started. Morning reminders configured for {hour:02d}:{minute:02d} ({tz}) daily.")
 
 
-def reschedule_morning_reminders(hour: int, minute: int):
+def reschedule_morning_reminders(hour: int, minute: int, timezone: str = "Africa/Nairobi"):
     """Dynamically updates the morning reminder schedule without restarting the server."""
     if scheduler.running:
-        trigger = CronTrigger(hour=hour, minute=minute)
+        trigger = CronTrigger(hour=hour, minute=minute, timezone=timezone)
         scheduler.reschedule_job("daily_morning_reminders", trigger=trigger)
-        logger.info(f"Rescheduled morning reminders to {hour:02d}:{minute:02d} daily.")
+        logger.info(f"Rescheduled morning reminders to {hour:02d}:{minute:02d} ({timezone}) daily.")
