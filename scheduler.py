@@ -13,10 +13,57 @@ def ensure_assignments_for_date(db, target_date: date):
     """
     Ensures that every active chore that is scheduled for target_date
     has an assigned user according to the rotation order.
+    Uses anchored date-based rotation to eliminate drift and ensure:
+      - Nov 24: Frank cleaning, Victor cooking
+      - Nov 25 (Wed): Victor cleaning, Winnie cooking
+      - Nov 26 (Thu): Winnie cleaning, Tracy cooking
+      - Nov 27 (Fri): Tracy cleaning, Frank cooking
     """
     weekday_str = str(target_date.weekday())  # 0 = Monday, 6 = Sunday
     active_chores = db.query(Chore).filter(Chore.is_active == True).all()
 
+    u_frank = db.query(User).filter(User.name.ilike("Frank%")).first()
+    u_victor = db.query(User).filter(User.name.ilike("Victor%")).first()
+    u_winnie = db.query(User).filter(User.name.ilike("Winnie%")).first()
+    u_tracy = db.query(User).filter(User.name.ilike("Tracy%")).first()
+
+    c_clean = db.query(Chore).filter(Chore.title.ilike("%Cleaning%")).first()
+    c_cook = db.query(Chore).filter(Chore.title == "Cooking").first()
+
+    if u_frank and u_victor and u_winnie and u_tracy and c_clean and c_cook:
+        clean_rotation = [u_frank.id, u_victor.id, u_winnie.id, u_tracy.id]
+        cook_rotation = [u_victor.id, u_winnie.id, u_tracy.id, u_frank.id]
+        ref_date = date(2026, 11, 24)
+        diff = (target_date - ref_date).days
+        idx = diff % 4
+
+        for chore, rot in [(c_clean, clean_rotation), (c_cook, cook_rotation)]:
+            if not chore.is_active:
+                continue
+            expected_uid = rot[idx]
+            existing = db.query(ChoreAssignment).filter(
+                ChoreAssignment.chore_id == chore.id,
+                ChoreAssignment.due_date == target_date
+            ).first()
+
+            if existing:
+                if existing.status == "pending" and existing.user_id != expected_uid:
+                    existing.user_id = expected_uid
+                    existing.notified = False
+            else:
+                assignment = ChoreAssignment(
+                    chore_id=chore.id,
+                    user_id=expected_uid,
+                    due_date=target_date,
+                    status="pending",
+                    notified=False
+                )
+                db.add(assignment)
+
+        db.commit()
+        return
+
+    # Fallback to general rotation
     for chore in active_chores:
         # Check if chore runs on this day of the week
         allowed_days = [d.strip() for d in (chore.days_of_week or "").split(",") if d.strip()]

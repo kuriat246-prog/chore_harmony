@@ -25,10 +25,10 @@ templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 def apply_exact_household_rotation(db: Session):
     """
     Enforces the exact household rotation requested:
-    - Today: Frank cleaning, Victor cooking
-    - Tomorrow: Victor cleaning, Winnie cooking
-    - Day after: Winnie cleaning, Tracy cooking
-    - Day after: Tracy cleaning, Frank cooking
+    - Nov 24 (Tue): Frank cleaning, Victor cooking
+    - Nov 25 (Wed - Today): Victor cleaning, Winnie cooking
+    - Nov 26 (Thu - Tomorrow): Winnie cleaning, Tracy cooking
+    - Nov 27 (Fri): Tracy cleaning, Frank cooking
     And cycles continuously!
     """
     u_frank = db.query(User).filter(User.name.ilike("Frank%")).first()
@@ -59,46 +59,35 @@ def apply_exact_household_rotation(db: Session):
     c_cook.frequency = "daily"
 
     today = date.today()
+    ref_date = date(2026, 11, 24)
 
-    existing_clean = db.query(ChoreAssignment).filter(
-        ChoreAssignment.chore_id == c_clean.id,
-        ChoreAssignment.due_date == today
-    ).first()
-    existing_cook = db.query(ChoreAssignment).filter(
-        ChoreAssignment.chore_id == c_cook.id,
-        ChoreAssignment.due_date == today
-    ).first()
+    for offset in range(14):
+        target_date = today + timedelta(days=offset)
+        diff = (target_date - ref_date).days
+        idx = diff % 4
 
-    matches = (
-        existing_clean and existing_clean.user_id == u_frank.id and
-        existing_cook and existing_cook.user_id == u_victor.id
-    )
+        for chore, rot in [(c_clean, clean_rotation), (c_cook, cook_rotation)]:
+            expected_uid = rot[idx]
+            existing = db.query(ChoreAssignment).filter(
+                ChoreAssignment.chore_id == chore.id,
+                ChoreAssignment.due_date == target_date
+            ).first()
 
-    if not matches:
-        db.query(ChoreAssignment).filter(ChoreAssignment.due_date >= today).delete()
-        db.commit()
+            if existing:
+                if existing.status == "pending" and existing.user_id != expected_uid:
+                    existing.user_id = expected_uid
+                    existing.notified = False
+            else:
+                a = ChoreAssignment(
+                    chore_id=chore.id,
+                    user_id=expected_uid,
+                    due_date=target_date,
+                    status="pending",
+                    notified=False
+                )
+                db.add(a)
 
-        for offset in range(14):
-            d = today + timedelta(days=offset)
-            idx = offset % 4
-            a1 = ChoreAssignment(
-                chore_id=c_clean.id,
-                user_id=clean_rotation[idx],
-                due_date=d,
-                status="pending",
-                notified=False
-            )
-            a2 = ChoreAssignment(
-                chore_id=c_cook.id,
-                user_id=cook_rotation[idx],
-                due_date=d,
-                status="pending",
-                notified=False
-            )
-            db.add_all([a1, a2])
-        db.commit()
-    else:
-        db.commit()
+    db.commit()
 
 
 @asynccontextmanager
