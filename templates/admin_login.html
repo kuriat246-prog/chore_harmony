@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-50">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Login | ChoreHarmony</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>body { font-family: 'Plus Jakarta Sans', sans-serif; }</style>
+</head>
+<body class="h-full flex items-center justify-center bg-gradient-to-br from-slate-900 to-indigo-950 p-4">
+  <div class="w-full max-w-sm">
+    <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+      <!-- Header -->
+      <div class="bg-gradient-to-r from-indigo-700 to-violet-700 p-7 text-center text-white">
+        <div class="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center mx-auto mb-4">
+          <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+          </svg>
+        </div>
+        <h1 class="text-xl font-extrabold tracking-tight">Admin Panel</h1>
+        <p class="text-indigo-200 text-xs mt-1">ChoreHarmony — Restricted Access</p>
+      </div>
+
+      <!-- Form -->
+      <div class="p-7 space-y-5">
+        {% if error %}
+        <div class="bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold p-3 rounded-xl flex items-center space-x-2">
+          <svg class="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+          </svg>
+          <span>{{ error }}</span>
+        </div>
+        {% endif %}
+
+        <form action="/admin/login" method="POST" class="space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1.5">Admin Password</label>
+            <input
+              type="password"
+              name="password"
+              required
+              autofocus
+              placeholder="Enter admin password"
+              class="w-full text-sm border border-slate-300 rounded-xl px-3 py-2.5 text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none"
+            >
+          </div>
+          <button type="submit" class="w-full py-2.5 bg-indigo-700 hover:bg-indigo-800 text-white font-bold text-sm rounded-xl shadow-md transition">
+            Sign In to Admin Panel
+          </button>
+        </form>
+
+        <div class="text-center">
+          <a href="/" class="text-xs text-slate-400 hover:text-slate-600 underline">Back to Dashboard</a>
+        </div>
+
+        <div class="bg-amber-50 border border-amber-200 p-3 rounded-xl text-xs text-amber-800">
+          <strong>Default password:</strong> <code>admin123</code> — Change it immediately after first login via Admin Panel &rarr; Security.
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
