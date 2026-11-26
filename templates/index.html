@@ -17,15 +17,21 @@
       <p class="text-indigo-100 text-sm mt-1">No finger-pointing, no awkward texts. The system keeps everyone aligned!</p>
     </div>
     <div class="flex items-center space-x-2 self-start sm:self-center flex-wrap gap-y-2">
-      <a href="/admin/sync-rotation" title="Ensure rotation order is synchronized" class="px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-semibold backdrop-blur-sm transition border border-white/20">
-        🔄 Realign Schedule
-      </a>
+      {% if admin_logged_in %}
+      <form action="/admin/sync-rotation" method="POST" class="inline">
+        <button type="submit" class="px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-semibold backdrop-blur-sm transition border border-white/20">
+          Realign Schedule
+        </button>
+      </form>
+      {% endif %}
       <a href="#weekly-schedule" class="px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-semibold backdrop-blur-sm transition border border-white/20">
-        👀 View Week Ahead
+        View Week Ahead
       </a>
+      {% if admin_logged_in %}
       <a href="/chores" class="px-3 py-2 bg-white text-brand-700 hover:bg-slate-100 rounded-xl text-xs font-bold shadow-md transition">
         + Add Chore
       </a>
+      {% endif %}
     </div>
   </div>
 
@@ -148,23 +154,32 @@
           {% if item.status == 'completed' %}
             <div class="flex items-center justify-between py-1">
               <span class="text-xs text-emerald-700 font-bold flex items-center space-x-1">
-                <span>✨ Completed by {{ item.user.name }}!</span>
+                <span>Completed by {{ item.user.name }}!</span>
               </span>
+              {% if admin_logged_in %}
               <form action="/assignments/{{ item.id }}/reset" method="POST" class="inline">
                 <button type="submit" class="text-[11px] text-slate-400 hover:text-slate-600 underline">
-                  Undo / Test Again
+                  Undo
                 </button>
               </form>
+              {% endif %}
             </div>
           {% else %}
-            <div class="grid grid-cols-2 gap-2">
+            <div class="{% if admin_logged_in %}grid grid-cols-2 gap-2{% endif %}">
+              {% if admin_logged_in %}
               <form action="/assignments/{{ item.id }}/complete" method="POST" onsubmit="triggerConfetti()">
                 <button type="submit" class="w-full py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center justify-center space-x-1">
-                  <span>✅ Mark Done</span>
+                  <span>Mark Done</span>
                 </button>
               </form>
+              {% else %}
+              <div class="py-2 text-xs text-slate-400 text-center">
+                Admin marks chores as done. 
+                <a href="/admin/login" class="text-indigo-500 font-semibold underline">Log in</a>
+              </div>
+              {% endif %}
               <button onclick="openSwapModal({{ item.id }}, '{{ item.chore.title }}', {{ item.user_id }})" class="w-full py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition flex items-center justify-center space-x-1">
-                <span>🤝 Swap</span>
+                <span>Request Swap</span>
               </button>
             </div>
           {% endif %}
