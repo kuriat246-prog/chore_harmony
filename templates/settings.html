@@ -155,6 +155,24 @@
           <input type="text" name="APP_URL" placeholder="https://chore-harmony.onrender.com" value="{{ settings.get('APP_URL') or 'https://chore-harmony.onrender.com' }}" class="w-full text-xs border border-slate-300 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-brand-500 outline-none">
           <span class="text-[11px] text-slate-400 mt-0.5 block">Use <code>https://chore-harmony.onrender.com</code> so roommates can click and mark done from their phones!</span>
         </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Email Sender Name (From field)</label>
+          <input type="text" name="SMTP_FROM" placeholder="ChoreHarmony" value="{{ settings.get('SMTP_FROM', '') }}" class="w-full text-xs border border-slate-300 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-brand-500 outline-none">
+          <span class="text-[11px] text-slate-400 mt-0.5 block">Displayed in email From field. Leave blank to use Gmail address directly.</span>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Timezone</label>
+          <select name="TIMEZONE" class="w-full text-xs border border-slate-300 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-brand-500 outline-none">
+            <option value="Africa/Nairobi" {% if settings.get('TIMEZONE','Africa/Nairobi') in ['Africa/Nairobi',''] %}selected{% endif %}>Africa/Nairobi (EAT, UTC+3)</option>
+            <option value="UTC" {% if settings.get('TIMEZONE') == 'UTC' %}selected{% endif %}>UTC</option>
+            <option value="Africa/Lagos" {% if settings.get('TIMEZONE') == 'Africa/Lagos' %}selected{% endif %}>Africa/Lagos (WAT, UTC+1)</option>
+            <option value="Africa/Johannesburg" {% if settings.get('TIMEZONE') == 'Africa/Johannesburg' %}selected{% endif %}>Africa/Johannesburg (SAST, UTC+2)</option>
+            <option value="Europe/London" {% if settings.get('TIMEZONE') == 'Europe/London' %}selected{% endif %}>Europe/London (GMT/BST)</option>
+            <option value="America/New_York" {% if settings.get('TIMEZONE') == 'America/New_York' %}selected{% endif %}>America/New_York (EST/EDT)</option>
+            <option value="Asia/Dubai" {% if settings.get('TIMEZONE') == 'Asia/Dubai' %}selected{% endif %}>Asia/Dubai (GST, UTC+4)</option>
+          </select>
+          <span class="text-[11px] text-slate-400 mt-0.5 block">Timezone for scheduled morning reminders. Default: Africa/Nairobi (UTC+3).</span>
+        </div>
       </div>
 
       <div class="bg-blue-50/60 p-4 rounded-xl border border-blue-100 text-xs text-slate-700 space-y-2">
