@@ -1,4 +1,6 @@
 import os
+import hashlib
+import secrets
 from datetime import datetime, date
 from sqlalchemy import create_engine, Column, Integer, String, Text, Boolean, DateTime, Date, ForeignKey
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
@@ -93,8 +95,75 @@ class AppSetting(Base):
     value = Column(Text, nullable=True)
 
 
+class AdminSession(Base):
+    """Stores admin session tokens for secure admin login."""
+    __tablename__ = "admin_sessions"
+
+    token = Column(String(128), primary_key=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False)
+
+
 def init_db():
     Base.metadata.create_all(bind=engine)
+    _ensure_admin_password()
+
+
+def _ensure_admin_password():
+    """Create a default admin password hash if none exists."""
+    db = SessionLocal()
+    try:
+        setting = db.query(AppSetting).filter(AppSetting.key == "ADMIN_PASSWORD_HASH").first()
+        if not setting or not setting.value:
+            # Default password: "admin123" - admin MUST change this via admin panel
+            default_hash = _hash_password("admin123")
+            if setting:
+                setting.value = default_hash
+            else:
+                db.add(AppSetting(key="ADMIN_PASSWORD_HASH", value=default_hash))
+            db.commit()
+    finally:
+        db.close()
+
+
+def _hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode()).hexdigest()
+
+
+def verify_admin_password(db, password: str) -> bool:
+    stored = get_setting(db, "ADMIN_PASSWORD_HASH", "")
+    if not stored:
+        return False
+    return stored == _hash_password(password)
+
+
+def set_admin_password(db, new_password: str):
+    set_setting(db, "ADMIN_PASSWORD_HASH", _hash_password(new_password))
+
+
+def create_admin_session(db) -> str:
+    """Create a new admin session token (valid 8 hours)."""
+    from datetime import timedelta
+    token = secrets.token_urlsafe(64)
+    expires = datetime.utcnow() + timedelta(hours=8)
+    session = AdminSession(token=token, expires_at=expires)
+    db.add(session)
+    db.commit()
+    return token
+
+
+def validate_admin_session(db, token: str) -> bool:
+    """Returns True if the session token is valid and not expired."""
+    if not token:
+        return False
+    session = db.query(AdminSession).filter(AdminSession.token == token).first()
+    if not session:
+        return False
+    if session.expires_at < datetime.utcnow():
+        db.delete(session)
+        db.commit()
+        return False
+    return True
 
 
 def get_db():
