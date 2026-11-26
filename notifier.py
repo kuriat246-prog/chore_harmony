@@ -1,11 +1,14 @@
 import os
 import ssl
+import logging
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import requests
 from datetime import datetime
 from database import NotificationLog, get_setting
+
+logger = logging.getLogger("chore_notifier")
 
 
 def send_email_notification(
@@ -19,33 +22,37 @@ def send_email_notification(
     chore_title: str,
     chore_icon: str,
     chore_description: str,
-    app_url: str,
-    complete_url: str = ""
+    app_url: str
 ) -> tuple[bool, str]:
     if not smtp_host or not smtp_user or not to_email:
         return False, "SMTP configuration or recipient email is missing."
 
-    # Normalize credentials: strip spaces (especially from 16-character Google App Passwords)
+    # Normalize credentials
     smtp_user = smtp_user.strip()
     smtp_pass = (smtp_pass or "").replace(" ", "").strip()
     smtp_host = smtp_host.strip()
-    complete_url = complete_url or app_url
+    to_email = to_email.strip()
+
+    if not smtp_pass:
+        return False, "SMTP password is empty. Please configure your Gmail App Password in Settings."
 
     try:
         msg = MIMEMultipart("alternative")
-        msg["Subject"] = f"☀️ Morning Chore Reminder: {chore_title}"
+        msg["Subject"] = f"Morning Chore Reminder: {chore_title}"
         msg["From"] = from_email or smtp_user
         msg["To"] = to_email
 
         text_body = f"""Good morning, {user_name}!
-Today is your day to take care of: {chore_title} {chore_icon}
+Today is your day to take care of: {chore_title}
 
-Checklist / Details:
-{chore_description or 'No specific instructions. Just leave it tidy!'}
+Checklist / Definition of Done:
+{chore_description or 'No specific instructions. Just leave it clean and tidy!'}
 
-Mark done in 1 click: {complete_url}
-Or visit the board: {app_url}
-Thanks for being an awesome flatmate!
+Household Chore Board:
+{app_url}
+
+When finished, your household admin will review and mark the chore as done.
+Thanks for keeping our home clean and harmonious!
 """
 
         html_body = f"""
@@ -61,14 +68,13 @@ Thanks for being an awesome flatmate!
     .chore-box {{ background-color: #f9fafb; border-left: 4px solid #4f46e5; border-radius: 8px; padding: 18px; margin: 20px 0; }}
     .chore-title {{ font-size: 20px; font-weight: 700; color: #111827; margin: 0 0 6px 0; }}
     .chore-desc {{ font-size: 14px; color: #6b7280; margin: 0; line-height: 1.5; }}
-    .btn {{ display: inline-block; background-color: #059669; color: #ffffff !important; text-decoration: none; padding: 14px 28px; border-radius: 12px; font-weight: 700; font-size: 15px; margin-top: 15px; text-align: center; box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.3); }}
+    .btn {{ display: inline-block; background-color: #4f46e5; color: #ffffff !important; text-decoration: none; padding: 14px 28px; border-radius: 12px; font-weight: 700; font-size: 15px; margin-top: 15px; text-align: center; box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.3); }}
     .footer {{ text-align: center; font-size: 12px; color: #9ca3af; padding: 20px; }}
   </style>
 </head>
 <body>
   <div class="card">
     <div class="header">
-      <div style="font-size: 40px; margin-bottom: 8px;">{chore_icon}</div>
       <h1 style="margin: 0; font-size: 24px; font-weight: 800;">Good morning, {user_name}!</h1>
       <p style="margin: 6px 0 0 0; opacity: 0.9; font-size: 14px;">Here is your scheduled chore for today</p>
     </div>
@@ -78,13 +84,13 @@ Thanks for being an awesome flatmate!
       </p>
       <div class="chore-box">
         <div class="chore-title">{chore_icon} {chore_title}</div>
-        <p class="chore-desc">{chore_description or 'No extra notes. When you finish, tap the button below to mark it done!'}</p>
+        <p class="chore-desc">{chore_description or 'No extra notes. Just ensure the area is left neat and clean!'}</p>
       </div>
-      <div style="text-align: center; margin: 24px 0 10px 0;">
-        <a href="{complete_url}" class="btn">✅ Mark as Done (+10 Karma)</a>
-      </div>
-      <div style="text-align: center; margin-top: 12px;">
-        <a href="{app_url}" style="font-size: 13px; color: #6366f1; text-decoration: underline;">View Household Chore Board</a>
+      <p style="font-size: 13px; color: #6b7280; margin: 16px 0 8px 0; text-align: center;">
+        Once complete, your household admin will inspect and mark it as done on the roster.
+      </p>
+      <div style="text-align: center; margin: 18px 0 10px 0;">
+        <a href="{app_url}" class="btn">View Household Chore Board</a>
       </div>
     </div>
     <div class="footer">
@@ -99,7 +105,7 @@ Thanks for being an awesome flatmate!
 
         # Connection strategy:
         # Port 587 uses STARTTLS. Port 465 uses direct SSL.
-        # If port 587 drops (common on some ISP/mobile networks), automatically fallback to port 465 SSL.
+        # Fallback between ports automatically if one times out or is blocked.
         ports_to_try = [smtp_port]
         if smtp_port == 587 and 465 not in ports_to_try:
             ports_to_try.append(465)
@@ -111,34 +117,33 @@ Thanks for being an awesome flatmate!
             try:
                 if port == 465:
                     ssl_context = ssl.create_default_context()
-                    with smtplib.SMTP_SSL(smtp_host, port, context=ssl_context, timeout=15) as server:
-                        try:
-                            server.login(smtp_user, smtp_pass)
-                        except smtplib.SMTPServerDisconnected:
-                            return False, "Gmail Authentication Failed: Google rejected the App Password (535 Bad Credentials). Please generate a fresh 16-character App Password at myaccount.google.com/apppasswords."
+                    with smtplib.SMTP_SSL(smtp_host, port, context=ssl_context, timeout=20) as server:
+                        server.login(smtp_user, smtp_pass)
                         server.send_message(msg)
+                    logger.info(f"Email sent to {to_email} via SSL port 465.")
                     return True, "Email sent successfully via SSL (port 465)."
                 else:
-                    with smtplib.SMTP(smtp_host, port, timeout=15) as server:
+                    with smtplib.SMTP(smtp_host, port, timeout=20) as server:
                         server.ehlo()
                         server.starttls(context=ssl.create_default_context())
                         server.ehlo()
-                        try:
-                            server.login(smtp_user, smtp_pass)
-                        except smtplib.SMTPServerDisconnected:
-                            return False, "Gmail Authentication Failed: Google rejected the App Password (535 Bad Credentials). Please generate a fresh 16-character App Password at myaccount.google.com/apppasswords."
+                        server.login(smtp_user, smtp_pass)
                         server.send_message(msg)
+                    logger.info(f"Email sent to {to_email} via STARTTLS port {port}.")
                     return True, f"Email sent successfully via STARTTLS (port {port})."
+            except smtplib.SMTPAuthenticationError as auth_err:
+                err_detail = auth_err.smtp_error.decode() if isinstance(getattr(auth_err, 'smtp_error', None), bytes) else str(auth_err)
+                return False, f"Gmail Auth Failed (535): Invalid App Password. {err_detail}."
             except Exception as err:
                 last_error = err
+                logger.warning(f"Email port {port} failed: {err}. Trying next port...")
                 continue
 
-        if last_error:
-            raise last_error
+        err_msg = str(last_error) if last_error else "All SMTP ports timed out."
+        return False, f"SMTP failed on all ports (Render/Cloud may block SMTP): {err_msg}"
 
-        return False, "Failed to connect to email server."
     except smtplib.SMTPAuthenticationError as e:
-        return False, f"Gmail Login Failed: Invalid Google App Password. (Error: {e.smtp_error.decode() if hasattr(e, 'smtp_error') and isinstance(e.smtp_error, bytes) else str(e)})"
+        return False, f"Gmail Login Failed: {str(e)}"
     except Exception as e:
         return False, f"Email failed: {str(e)}"
 
@@ -152,8 +157,7 @@ def send_brevo_api_notification(
     chore_title: str,
     chore_icon: str,
     chore_description: str,
-    app_url: str,
-    complete_url: str = ""
+    app_url: str
 ) -> tuple[bool, str]:
     """
     Sends email via Brevo REST API over HTTPS (Port 443).
@@ -162,20 +166,24 @@ def send_brevo_api_notification(
     if not api_key or not to_email:
         return False, "Brevo API Key or recipient email is missing."
 
-    complete_url = complete_url or app_url
+    api_key = api_key.strip()
+    to_email = to_email.strip()
     sender_email = (from_email or "").strip()
+
     if not sender_email:
-        sender_email = "no-reply@choreharmony.com"
+        return False, "Brevo sender email is missing. Please add your verified Brevo sender email in Settings."
 
     text_body = f"""Good morning, {user_name}!
-Today is your day to take care of: {chore_title} {chore_icon}
+Today is your day to take care of: {chore_title}
 
-Checklist / Details:
-{chore_description or 'No specific instructions. Just leave it tidy!'}
+Checklist / Definition of Done:
+{chore_description or 'No specific instructions. Just leave it clean and tidy!'}
 
-Mark done in 1 click: {complete_url}
-Or visit the board: {app_url}
-Thanks for being an awesome flatmate!
+Household Chore Board:
+{app_url}
+
+When finished, your household admin will review and mark the chore as done.
+Thanks for keeping our home clean and harmonious!
 """
 
     html_body = f"""
@@ -191,14 +199,13 @@ Thanks for being an awesome flatmate!
     .chore-box {{ background-color: #f9fafb; border-left: 4px solid #4f46e5; border-radius: 8px; padding: 18px; margin: 20px 0; }}
     .chore-title {{ font-size: 20px; font-weight: 700; color: #111827; margin: 0 0 6px 0; }}
     .chore-desc {{ font-size: 14px; color: #6b7280; margin: 0; line-height: 1.5; }}
-    .btn {{ display: inline-block; background-color: #059669; color: #ffffff !important; text-decoration: none; padding: 14px 28px; border-radius: 12px; font-weight: 700; font-size: 15px; margin-top: 15px; text-align: center; box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.3); }}
+    .btn {{ display: inline-block; background-color: #4f46e5; color: #ffffff !important; text-decoration: none; padding: 14px 28px; border-radius: 12px; font-weight: 700; font-size: 15px; margin-top: 15px; text-align: center; box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.3); }}
     .footer {{ text-align: center; font-size: 12px; color: #9ca3af; padding: 20px; }}
   </style>
 </head>
 <body>
   <div class="card">
     <div class="header">
-      <div style="font-size: 40px; margin-bottom: 8px;">{chore_icon}</div>
       <h1 style="margin: 0; font-size: 24px; font-weight: 800;">Good morning, {user_name}!</h1>
       <p style="margin: 6px 0 0 0; opacity: 0.9; font-size: 14px;">Here is your scheduled chore for today</p>
     </div>
@@ -208,13 +215,13 @@ Thanks for being an awesome flatmate!
       </p>
       <div class="chore-box">
         <div class="chore-title">{chore_icon} {chore_title}</div>
-        <p class="chore-desc">{chore_description or 'No extra notes. When you finish, tap the button below to mark it done!'}</p>
+        <p class="chore-desc">{chore_description or 'No extra notes. Just ensure the area is left neat and clean!'}</p>
       </div>
-      <div style="text-align: center; margin: 24px 0 10px 0;">
-        <a href="{complete_url}" class="btn">✅ Mark as Done (+10 Karma)</a>
-      </div>
-      <div style="text-align: center; margin-top: 12px;">
-        <a href="{app_url}" style="font-size: 13px; color: #6366f1; text-decoration: underline;">View Household Chore Board</a>
+      <p style="font-size: 13px; color: #6b7280; margin: 16px 0 8px 0; text-align: center;">
+        Once complete, your household admin will inspect and mark it as done on the roster.
+      </p>
+      <div style="text-align: center; margin: 18px 0 10px 0;">
+        <a href="{app_url}" class="btn">View Household Chore Board</a>
       </div>
     </div>
     <div class="footer">
@@ -229,7 +236,7 @@ Thanks for being an awesome flatmate!
         url = "https://api.brevo.com/v3/smtp/email"
         headers = {
             "accept": "application/json",
-            "api-key": api_key.strip(),
+            "api-key": api_key,
             "content-type": "application/json"
         }
         payload = {
@@ -239,19 +246,26 @@ Thanks for being an awesome flatmate!
             },
             "to": [
                 {
-                    "email": to_email.strip(),
+                    "email": to_email,
                     "name": user_name
                 }
             ],
-            "subject": f"☀️ Morning Chore Reminder: {chore_title}",
+            "subject": f"Morning Chore Reminder: {chore_title}",
             "htmlContent": html_body,
             "textContent": text_body
         }
-        resp = requests.post(url, json=payload, headers=headers, timeout=15)
+        resp = requests.post(url, json=payload, headers=headers, timeout=20)
         if resp.status_code in (200, 201, 202):
+            logger.info(f"Brevo email sent to {to_email} for chore: {chore_title}")
             return True, "Email sent successfully via Brevo HTTPS API."
         else:
-            return False, f"Brevo API error ({resp.status_code}): {resp.text}"
+            err = resp.text
+            logger.error(f"Brevo API error {resp.status_code}: {err}")
+            return False, f"Brevo API error ({resp.status_code}): {err}"
+    except requests.exceptions.ConnectionError:
+        return False, "Brevo API: Network connection error. Check internet connectivity."
+    except requests.exceptions.Timeout:
+        return False, "Brevo API: Request timed out (20s). Brevo may be unreachable."
     except Exception as e:
         return False, f"Brevo API request failed: {str(e)}"
 
@@ -259,6 +273,9 @@ Thanks for being an awesome flatmate!
 def send_telegram_notification(bot_token: str, chat_id: str, text: str) -> tuple[bool, str]:
     if not bot_token or not chat_id:
         return False, "Telegram Bot Token or Chat ID is missing."
+
+    bot_token = bot_token.strip()
+    chat_id = chat_id.strip()
 
     try:
         url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
@@ -268,29 +285,41 @@ def send_telegram_notification(bot_token: str, chat_id: str, text: str) -> tuple
             "parse_mode": "Markdown",
             "disable_web_page_preview": False
         }
-        resp = requests.post(url, json=payload, timeout=10)
+        resp = requests.post(url, json=payload, timeout=15)
         data = resp.json()
         if data.get("ok"):
             return True, "Telegram notification sent."
         else:
-            return False, f"Telegram API error: {data.get('description', 'Unknown error')}"
+            err_desc = data.get('description', 'Unknown error')
+            logger.error(f"Telegram API error for chat {chat_id}: {err_desc}")
+            return False, f"Telegram API error: {err_desc}"
+    except requests.exceptions.ConnectionError:
+        return False, "Telegram: Network connection error."
+    except requests.exceptions.Timeout:
+        return False, "Telegram: Request timed out (15s)."
     except Exception as e:
         return False, f"Telegram network error: {str(e)}"
 
 
 def dispatch_chore_reminder(db, assignment, app_url: str = "http://localhost:8000") -> list[dict]:
     """
-    Sends morning reminders via Email, Telegram, and In-App notification log.
+    Sends morning reminders via Email (with Brevo API -> SMTP auto-fallback),
+    Telegram push, and in-app activity feed.
     """
     user = assignment.user
     chore = assignment.chore
 
+    if not user or not chore:
+        logger.error(f"Assignment {assignment.id} has no user or chore attached. Skipping.")
+        return []
+
     # Fetch configuration
     smtp_host = get_setting(db, "SMTP_HOST", "")
-    smtp_port = int(get_setting(db, "SMTP_PORT", "587") or 587)
+    smtp_port_str = get_setting(db, "SMTP_PORT", "587")
+    smtp_port = int(smtp_port_str) if smtp_port_str.isdigit() else 587
     smtp_user = get_setting(db, "SMTP_USER", "")
     smtp_pass = get_setting(db, "SMTP_PASSWORD", "")
-    smtp_from = get_setting(db, "SMTP_FROM", "Roommate Chore Bot <no-reply@chores.local>")
+    smtp_from = get_setting(db, "SMTP_FROM", "") or smtp_user
     telegram_token = get_setting(db, "TELEGRAM_BOT_TOKEN", "")
     brevo_api_key = get_setting(db, "BREVO_API_KEY", "")
     brevo_sender = get_setting(db, "BREVO_SENDER_EMAIL", "") or smtp_user
@@ -300,12 +329,13 @@ def dispatch_chore_reminder(db, assignment, app_url: str = "http://localhost:800
     # 1. Telegram Push (Instant & Free)
     if telegram_token and user.telegram_chat_id:
         tg_text = (
-            f"☀️ *Good morning, {user.name}!*\n\n"
+            f"Good morning, {user.name}!\n\n"
             f"Today is your turn for:\n"
-            f"*{chore.icon} {chore.title}*\n\n"
-            f"📋 *Definition of Done:*\n"
-            f"_{chore.description or 'Keep it neat and tidy!'}\n\n"
-            f"👉 [Open Chore Dashboard]({app_url}) to mark it done or request a swap!"
+            f"{chore.icon} *{chore.title}*\n\n"
+            f"Definition of Done:\n"
+            f"_{chore.description or 'Keep it neat and clean!'}_\n\n"
+            f"Board: {app_url}\n"
+            f"(Your admin will mark it done once finished.)"
         )
         tg_ok, tg_msg = send_telegram_notification(telegram_token, user.telegram_chat_id, tg_text)
         log_entry = NotificationLog(
@@ -318,55 +348,77 @@ def dispatch_chore_reminder(db, assignment, app_url: str = "http://localhost:800
         db.add(log_entry)
         results.append({"channel": "telegram", "success": tg_ok, "details": tg_msg})
 
-    # 2. Email Notification (Brevo API preferred for Cloud/Render, SMTP as fallback)
-    if brevo_api_key and user.email:
-        complete_url = f"{app_url}/assignments/{assignment.id}/complete"
-        email_ok, email_msg = send_brevo_api_notification(
-            api_key=brevo_api_key,
-            from_email=brevo_sender,
-            from_name="ChoreHarmony",
-            to_email=user.email,
-            user_name=user.name,
-            chore_title=chore.title,
-            chore_icon=chore.icon,
-            chore_description=chore.description,
-            app_url=app_url,
-            complete_url=complete_url
-        )
+    # 2. Email Notification with Automatic Resilient Fallback
+    if user.email:
+        email_sent = False
+        email_msg = ""
+        channel_used = "email"
+
+        # Try Brevo API first (port 443 HTTPS, works on Render/Cloud without port blocks)
+        if brevo_api_key and brevo_sender:
+            email_ok, email_msg = send_brevo_api_notification(
+                api_key=brevo_api_key,
+                from_email=brevo_sender,
+                from_name="ChoreHarmony",
+                to_email=user.email,
+                user_name=user.name,
+                chore_title=chore.title,
+                chore_icon=chore.icon,
+                chore_description=chore.description,
+                app_url=app_url
+            )
+            channel_used = "email (brevo api)"
+            if email_ok:
+                email_sent = True
+            else:
+                logger.warning(f"Brevo API failed for {user.email}: {email_msg}. Trying SMTP fallback...")
+
+        # If Brevo was not configured or failed, try SMTP fallback
+        if not email_sent and smtp_host and smtp_user and smtp_pass:
+            smtp_ok, smtp_msg = send_email_notification(
+                smtp_host=smtp_host,
+                smtp_port=smtp_port,
+                smtp_user=smtp_user,
+                smtp_pass=smtp_pass,
+                from_email=smtp_from,
+                to_email=user.email,
+                user_name=user.name,
+                chore_title=chore.title,
+                chore_icon=chore.icon,
+                chore_description=chore.description,
+                app_url=app_url
+            )
+            if smtp_ok:
+                email_sent = True
+                channel_used = "email (smtp fallback)" if brevo_api_key else "email (smtp)"
+                email_msg = smtp_msg
+            else:
+                email_msg = f"{email_msg} | SMTP fallback also failed: {smtp_msg}" if email_msg else smtp_msg
+                channel_used = "email (all providers failed)"
+
+        if not brevo_api_key and not (smtp_host and smtp_user and smtp_pass):
+            email_msg = "No email provider configured. Please configure Brevo API key or Gmail SMTP in Settings."
+            channel_used = "email (unconfigured)"
+
         log_entry = NotificationLog(
             user_id=user.id,
             chore_title=chore.title,
-            channel="email (brevo api)",
-            status="sent" if email_ok else "failed",
+            channel=channel_used,
+            status="sent" if email_sent else "failed",
             details=email_msg
         )
         db.add(log_entry)
-        results.append({"channel": "email", "success": email_ok, "details": email_msg})
-    elif smtp_host and smtp_user and user.email:
-        complete_url = f"{app_url}/assignments/{assignment.id}/complete"
-        email_ok, email_msg = send_email_notification(
-            smtp_host=smtp_host,
-            smtp_port=smtp_port,
-            smtp_user=smtp_user,
-            smtp_pass=smtp_pass,
-            from_email=smtp_from,
-            to_email=user.email,
-            user_name=user.name,
-            chore_title=chore.title,
-            chore_icon=chore.icon,
-            chore_description=chore.description,
-            app_url=app_url,
-            complete_url=complete_url
-        )
+        results.append({"channel": "email", "success": email_sent, "details": email_msg})
+    else:
         log_entry = NotificationLog(
             user_id=user.id,
             chore_title=chore.title,
-            channel="email (smtp)",
-            status="sent" if email_ok else "failed",
-            details=email_msg
+            channel="email",
+            status="skipped",
+            details=f"{user.name} has no email address configured."
         )
         db.add(log_entry)
-        results.append({"channel": "email", "success": email_ok, "details": email_msg})
+        results.append({"channel": "email", "success": False, "details": f"{user.name} has no email address configured."})
 
     # 3. Always log in-app dashboard reminder
     in_app_msg = f"Morning reminder generated for {user.name}: {chore.icon} {chore.title}"
@@ -383,4 +435,5 @@ def dispatch_chore_reminder(db, assignment, app_url: str = "http://localhost:800
     assignment.notified = True
     db.commit()
 
+    logger.info(f"Dispatched reminders for {user.name} / {chore.title}. Results: {results}")
     return results
