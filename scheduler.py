@@ -1,5 +1,6 @@
 import logging
 from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.jobstores.base import JobLookupError
@@ -8,6 +9,13 @@ from notifier import dispatch_chore_reminder
 
 logger = logging.getLogger("chore_scheduler")
 scheduler = BackgroundScheduler()
+
+
+def get_current_time_in_tz(tz_name: str = "Africa/Nairobi") -> datetime:
+    try:
+        return datetime.now(ZoneInfo(tz_name or "Africa/Nairobi"))
+    except Exception:
+        return datetime.now()
 
 
 def ensure_assignments_for_date(db, target_date: date):
@@ -117,8 +125,9 @@ def process_morning_reminders(force_notify: bool = False):
     """
     db = SessionLocal()
     try:
-        today = date.today()
-        logger.info(f"[Scheduler] Running morning reminder job for {today}...")
+        tz = get_setting(db, "TIMEZONE", "Africa/Nairobi") or "Africa/Nairobi"
+        today = get_current_time_in_tz(tz).date()
+        logger.info(f"[Scheduler] Running morning reminder job for {today} ({tz})...")
         ensure_assignments_for_date(db, today)
 
         # Get all pending assignments for today
@@ -161,9 +170,10 @@ def check_and_catchup_reminders():
     try:
         hour = int(get_setting(db, "REMINDER_HOUR", "8") or 8)
         minute = int(get_setting(db, "REMINDER_MINUTE", "0") or 0)
-        today = date.today()
+        tz = get_setting(db, "TIMEZONE", "Africa/Nairobi") or "Africa/Nairobi"
 
-        now = datetime.now()
+        now = get_current_time_in_tz(tz)
+        today = now.date()
         current_minute_of_day = now.hour * 60 + now.minute
         scheduled_minute_of_day = hour * 60 + minute
 

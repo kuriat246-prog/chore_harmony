@@ -117,13 +117,13 @@ Thanks for keeping our home clean and harmonious!
             try:
                 if port == 465:
                     ssl_context = ssl.create_default_context()
-                    with smtplib.SMTP_SSL(smtp_host, port, context=ssl_context, timeout=20) as server:
+                    with smtplib.SMTP_SSL(smtp_host, port, context=ssl_context, timeout=8) as server:
                         server.login(smtp_user, smtp_pass)
                         server.send_message(msg)
                     logger.info(f"Email sent to {to_email} via SSL port 465.")
                     return True, "Email sent successfully via SSL (port 465)."
                 else:
-                    with smtplib.SMTP(smtp_host, port, timeout=20) as server:
+                    with smtplib.SMTP(smtp_host, port, timeout=8) as server:
                         server.ehlo()
                         server.starttls(context=ssl.create_default_context())
                         server.ehlo()

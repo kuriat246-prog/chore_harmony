@@ -6,13 +6,13 @@ from typing import List, Optional
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI, Request, Form, Depends, HTTPException, Cookie, Response
+from fastapi import FastAPI, Request, Form, Depends, HTTPException, Cookie, Response, BackgroundTasks
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from database import (
-    init_db, get_db, SessionLocal,
+    init_db, get_db, SessionLocal, IS_POSTGRES,
     User, Chore, ChoreAssignment, SwapRequest, NotificationLog,
     get_setting, set_setting,
     verify_admin_password, set_admin_password,
@@ -54,6 +54,16 @@ def is_admin(request: Request, db: Session) -> bool:
 # Household rotation seeding
 # ---------------------------------------------------------------------------
 
+def get_local_today(db: Session) -> date:
+    """Returns today's calendar date in the configured household timezone."""
+    tz_str = get_setting(db, "TIMEZONE", "Africa/Nairobi") or "Africa/Nairobi"
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.now(ZoneInfo(tz_str)).date()
+    except Exception:
+        return date.today()
+
+
 def apply_exact_household_rotation(db: Session):
     """
     Enforces the exact household rotation:
@@ -90,7 +100,7 @@ def apply_exact_household_rotation(db: Session):
     c_cook.days_of_week = "0,1,2,3,4,5,6"
     c_cook.frequency = "daily"
 
-    today = date.today()
+    today = get_local_today(db)
     ref_date = date(2026, 11, 24)
 
     for offset in range(14):
@@ -122,6 +132,14 @@ def apply_exact_household_rotation(db: Session):
     db.commit()
 
 
+def ensure_seed_data(db: Session):
+    """Ensures database has members and chores, even if ASGI lifespan wasn't invoked."""
+    if db.query(User).count() == 0:
+        from seed_data import seed
+        seed()
+        apply_exact_household_rotation(db)
+
+
 # ---------------------------------------------------------------------------
 # App lifecycle
 # ---------------------------------------------------------------------------
@@ -130,14 +148,15 @@ def apply_exact_household_rotation(db: Session):
 async def lifespan(app: FastAPI):
     # Startup: ensure tables and background scheduler are up
     init_db()
-    from seed_data import seed
-    seed()
     db = SessionLocal()
     try:
-        apply_exact_household_rotation(db)
+        ensure_seed_data(db)
     finally:
         db.close()
-    start_scheduler()
+    # On Vercel Serverless, background threads freeze between requests.
+    # Vercel Crons triggers /api/cron/trigger automatically instead.
+    if not os.getenv("VERCEL"):
+        start_scheduler()
     yield
     # Shutdown — scheduler stops automatically
 
@@ -151,7 +170,8 @@ app = FastAPI(title="ChoreHarmony", lifespan=lifespan)
 
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request, message: str = "", db: Session = Depends(get_db)):
-    today = date.today()
+    ensure_seed_data(db)
+    today = get_local_today(db)
     ensure_assignments_for_date(db, today)
     check_and_catchup_reminders()
 
@@ -358,7 +378,7 @@ def create_chore(
     )
     db.add(chore)
     db.commit()
-    ensure_assignments_for_date(db, date.today())
+    ensure_assignments_for_date(db, get_local_today(db))
     return RedirectResponse(url="/chores?message=New+chore+added+to+rotation+successfully!", status_code=303)
 
 
@@ -628,7 +648,7 @@ def admin_panel(
     db: Session = Depends(get_db),
     _admin=Depends(require_admin)
 ):
-    today = date.today()
+    today = get_local_today(db)
     users = db.query(User).filter(User.is_active == True).order_by(User.name).all()
     chores = db.query(Chore).filter(Chore.is_active == True).all()
     all_assignments = db.query(ChoreAssignment).filter(
@@ -878,27 +898,82 @@ def scheduler_status_api(
 
 
 @app.get("/api/health")
-def health_check():
-    """Public health check endpoint for uptime monitors."""
+def health_check(db: Session = Depends(get_db)):
+    """Public health & diagnostics check endpoint for Vercel/uptime monitors."""
     status = get_scheduler_status()
+    db_ok = False
+    db_error = None
+    user_count = 0
+    try:
+        ensure_seed_data(db)
+        user_count = db.query(User).count()
+        db_ok = True
+    except Exception as e:
+        db_error = str(e)
+
+    brevo_key = bool(get_setting(db, "BREVO_API_KEY", ""))
+    brevo_sender = bool(get_setting(db, "BREVO_SENDER_EMAIL", ""))
+    smtp_ready = bool(
+        get_setting(db, "SMTP_HOST", "") and
+        get_setting(db, "SMTP_USER", "") and
+        get_setting(db, "SMTP_PASSWORD", "")
+    )
+    app_url = get_setting(db, "APP_URL", "")
+    tz = get_setting(db, "TIMEZONE", "Africa/Nairobi")
+
     return {
-        "status": "ok",
+        "status": "ok" if db_ok else "error",
+        "platform": "vercel" if os.getenv("VERCEL") else "local_or_container",
+        "database": {
+            "backend": "postgresql" if IS_POSTGRES else "sqlite",
+            "connected": db_ok,
+            "error": db_error,
+            "user_count": user_count,
+        },
+        "email": {
+            "brevo_configured": brevo_key and brevo_sender,
+            "brevo_api_key_set": brevo_key,
+            "brevo_sender_email_set": brevo_sender,
+            "smtp_configured": smtp_ready,
+        },
+        "config": {
+            "app_url": app_url,
+            "timezone": tz,
+            "database_url_env_set": bool(os.getenv("DATABASE_URL", "").strip()),
+        },
         "timestamp": datetime.utcnow().isoformat(),
         "scheduler_running": status["running"],
-        "scheduler_next_run": status.get("next_run")
+        "scheduler_next_run": status.get("next_run"),
     }
 
 
 @app.get("/api/cron/trigger")
 @app.post("/api/cron/trigger")
-def cron_trigger():
+def cron_trigger(background_tasks: BackgroundTasks, sync: bool = False):
     """
-    Webhook endpoint for external cron jobs (e.g. Render Cron Job, cron-job.org).
-    Executes morning reminder checks and self-heals any missed assignments.
+    Webhook endpoint for cron jobs (Vercel Cron, external cron).
+    On Vercel (or when sync=True), runs synchronously so the serverless function
+    completes sending emails before the environment freezes.
+    On persistent containers, can run in background.
     """
-    count = process_morning_reminders(force_notify=False)
+    if sync or os.getenv("VERCEL"):
+        db = SessionLocal()
+        try:
+            ensure_seed_data(db)
+        finally:
+            db.close()
+        count = process_morning_reminders(force_notify=False)
+        return {
+            "status": "ok",
+            "mode": "sync",
+            "dispatched_count": count,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+    background_tasks.add_task(process_morning_reminders, force_notify=False)
     return {
         "status": "ok",
-        "dispatched_count": count,
+        "mode": "background",
+        "message": "Morning reminder processing scheduled in background.",
         "timestamp": datetime.utcnow().isoformat()
     }
